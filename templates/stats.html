@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% set active_page = "stats" %}
+{% block title %}Stats — Progress{% endblock %}
+{% block content %}
+<div class="mb-6"><h1 class="text-2xl font-bold">Stats</h1></div>
+<div class="bg-gray-900 rounded-2xl p-5 mb-4 text-center">
+    <div class="text-4xl font-bold text-indigo-400 mb-1">{{ streak }}</div>
+    <div class="text-sm text-gray-400">Day Streak</div>
+</div>
+<div class="grid grid-cols-3 gap-3 mb-6">
+    <div class="bg-gray-900 rounded-xl p-3 text-center"><div class="text-xl font-bold text-white">{{ total_projects }}</div><div class="text-xs text-gray-500">Projects</div></div>
+    <div class="bg-gray-900 rounded-xl p-3 text-center"><div class="text-xl font-bold text-white">{{ completed_tasks }}</div><div class="text-xs text-gray-500">Completed</div></div>
+    <div class="bg-gray-900 rounded-xl p-3 text-center"><div class="text-xl font-bold text-white">{{ total_activities }}</div><div class="text-xs text-gray-500">Actions</div></div>
+</div>
+<div class="mb-4">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Activity (Last 30 Days)</h2>
+    <div class="bg-gray-900 rounded-xl p-4">
+        <div class="grid grid-cols-10 gap-1.5">
+            {% for d in days %}
+            <div class="aspect-square rounded-sm {% if d.count == 0 %}bg-gray-800{% elif d.count <= 2 %}bg-indigo-900{% elif d.count <= 5 %}bg-indigo-700{% elif d.count <= 10 %}bg-indigo-500{% else %}bg-indigo-400{% endif %}" title="{{ d.label }}: {{ d.count }}"></div>
+            {% endfor %}
+        </div>
+        <div class="flex items-center justify-between mt-3 text-xs text-gray-500">
+            <span>{{ days[0].label }}</span>
+            <div class="flex items-center gap-1"><span class="mr-1">Less</span><div class="w-3 h-3 rounded-sm bg-gray-800"></div><div class="w-3 h-3 rounded-sm bg-indigo-900"></div><div class="w-3 h-3 rounded-sm bg-indigo-700"></div><div class="w-3 h-3 rounded-sm bg-indigo-500"></div><div class="w-3 h-3 rounded-sm bg-indigo-400"></div><span class="ml-1">More</span></div>
+            <span>Today</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

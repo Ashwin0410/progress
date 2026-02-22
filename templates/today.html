@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% set active_page = "today" %}
+{% block title %}Today — Progress{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold mb-1">Today</h1>
+    <p class="text-sm text-gray-400">{{ today.strftime('%A, %B %d, %Y') }}</p>
+</div>
+
+{% if overdue %}
+<div class="mb-6">
+    <h2 class="text-sm font-semibold text-red-400 uppercase tracking-wider mb-3">Overdue</h2>
+    {% for t in overdue %}
+    <div class="bg-red-900 bg-opacity-10 border border-red-900 border-opacity-30 rounded-xl p-3 mb-2 flex items-center gap-3">
+        <input type="checkbox" onchange="quickComplete({{ t.id }}, this)">
+        <div class="flex-1"><span class="text-sm text-gray-200">{{ t.title }}</span><span class="text-xs text-red-400 ml-2">Due {{ t.due_date.strftime('%b %d') }}</span></div>
+        <span class="text-xs font-mono text-gray-500">{{ t.progress|round(1) }}%</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if assigned_to_me %}
+<div class="mb-6">
+    <h2 class="text-sm font-semibold text-indigo-400 uppercase tracking-wider mb-3">Assigned to Me</h2>
+    {% for t in assigned_to_me %}
+    <a href="/project/{{ t.project_id }}" class="block bg-gray-900 rounded-xl p-3 mb-2 hover:bg-gray-800 transition">
+        <div class="flex items-center justify-between">
+            <span class="text-sm text-gray-200">{{ t.title }}</span>
+            <span class="text-xs font-mono text-gray-500">{{ t.progress|round(1) }}%</span>
+        </div>
+        {% if t.notes %}<p class="text-xs text-gray-500 mt-1 truncate">{{ t.notes }}</p>{% endif %}
+    </a>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if due_today %}
+<div class="mb-6">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Due Today</h2>
+    {% for t in due_today %}
+    <div class="bg-gray-900 rounded-xl p-3 mb-2 flex items-center gap-3">
+        <input type="checkbox" onchange="quickComplete({{ t.id }}, this)">
+        <div class="flex-1"><span class="text-sm text-gray-200">{{ t.title }}</span></div>
+        <span class="text-xs font-mono text-gray-500">{{ t.progress|round(1) }}%</span>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if not overdue and not due_today and not assigned_to_me %}
+<div class="bg-gray-900 rounded-xl p-4 mb-6 text-center"><p class="text-gray-400 text-sm">Nothing pending — keep up the momentum!</p></div>
+{% endif %}
+
+<h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Active Projects</h2>
+{% for pp in project_progress %}
+<a href="/project/{{ pp.project.id }}" class="block bg-gray-900 rounded-xl p-4 mb-3 hover:bg-gray-800 transition">
+    <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-2">
+            <div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ pp.project.color }}"></div>
+            <span class="font-medium text-sm">{{ pp.project.name }}</span>
+            {% if pp.member_count > 1 %}<span class="text-xs text-gray-500">{{ pp.member_count }} members</span>{% endif %}
+        </div>
+        <span class="text-sm font-mono" style="color: {{ pp.project.color }}">{{ pp.progress }}%</span>
+    </div>
+    <div class="progress-bar h-2"><div class="progress-fill h-2" style="width: {{ pp.progress }}%; background-color: {{ pp.project.color }}"></div></div>
+    <div class="flex items-center justify-between mt-2 text-xs text-gray-500">
+        <span>{{ pp.incomplete_tasks }} tasks remaining</span>
+        <div class="flex gap-3">
+            {% if pp.is_overdue %}<span class="text-red-400">Overdue</span>
+            {% elif pp.days_left is not none %}<span>{{ pp.days_left }}d left</span>{% endif %}
+            {% if pp.daily_target is not none %}<span class="text-indigo-400">{{ pp.daily_target }}%/day</span>{% endif %}
+        </div>
+    </div>
+</a>
+{% endfor %}
+<script>async function quickComplete(id,cb){await api(`/api/tasks/${id}`,'PUT',{is_completed:cb.checked});showToast(cb.checked?'Done!':'Reopened');setTimeout(()=>location.reload(),500);}</script>
+{% endblock %}

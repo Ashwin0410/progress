@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% set active_page = "search" %}
+{% block title %}Search — Progress{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold mb-4">Search</h1>
+    <form method="GET" action="/search" class="relative">
+        <input type="text" name="q" value="{{ q }}" class="input-field pl-10" placeholder="Search tasks and projects..." autofocus>
+        <svg class="w-5 h-5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+    </form>
+</div>
+{% if q and results %}
+    {% if results.projects %}<div class="mb-6"><h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Projects</h2>
+    {% for p in results.projects %}<a href="/project/{{ p.id }}" class="block bg-gray-900 rounded-xl p-3 mb-2 hover:bg-gray-800 transition"><div class="flex items-center gap-2"><div class="w-2.5 h-2.5 rounded-full" style="background-color: {{ p.color }}"></div><span class="font-medium text-sm">{{ p.name }}</span></div>{% if p.description %}<p class="text-xs text-gray-500 mt-1 truncate ml-5">{{ p.description }}</p>{% endif %}</a>{% endfor %}</div>{% endif %}
+    {% if results.tasks %}<div class="mb-6"><h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">Tasks</h2>
+    {% for t in results.tasks %}<a href="/project/{{ t.project_id }}" class="block bg-gray-900 rounded-xl p-3 mb-2 hover:bg-gray-800 transition"><div class="flex items-center justify-between"><span class="text-sm {{ 'line-through text-gray-600' if t.is_completed else 'text-gray-200' }}">{{ t.title }}</span><span class="text-xs font-mono text-gray-500">{{ t.progress|round(1) }}%</span></div>{% if t.notes %}<p class="text-xs text-gray-500 mt-1 truncate">{{ t.notes }}</p>{% endif %}</a>{% endfor %}</div>{% endif %}
+    {% if not results.projects and not results.tasks %}<div class="text-center py-10"><p class="text-gray-500">No results for "{{ q }}"</p></div>{% endif %}
+{% elif q %}<div class="text-center py-10"><p class="text-gray-500">No results for "{{ q }}"</p></div>{% endif %}
+{% endblock %}

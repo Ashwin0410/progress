@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% set active_page = "dashboard" %}
+{% block title %}Progress — Dashboard{% endblock %}
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+    <h1 class="text-2xl font-bold">Projects</h1>
+    <button onclick="showNewProjectModal()" class="btn-primary"><svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg> New</button>
+</div>
+{% if not ungrouped and not groups %}
+<div class="text-center py-16">
+    <div class="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gray-800 flex items-center justify-center"><svg class="w-8 h-8 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg></div>
+    <p class="text-gray-400 mb-1">No projects yet</p>
+    <p class="text-gray-500 text-sm mb-4">Create your first project to start tracking</p>
+    <button onclick="showNewProjectModal()" class="btn-primary">Create your first project</button>
+</div>
+{% endif %}
+
+{% macro project_card(pd) %}
+<a href="/project/{{ pd.project.id }}" class="project-card block mb-3">
+    <div class="flex items-start justify-between mb-2">
+        <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full flex-shrink-0" style="background-color: {{ pd.project.color }}"></div>
+            <h3 class="font-semibold text-white">{{ pd.project.name }}</h3>
+            {% if pd.member_count > 1 %}
+            <span class="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                {{ pd.member_count }}
+            </span>
+            {% endif %}
+        </div>
+        <span class="text-sm font-mono font-medium" style="color: {{ pd.project.color }}">{{ pd.progress }}%</span>
+    </div>
+    <div class="progress-bar ml-6"><div class="progress-fill" style="width: {{ pd.progress }}%; background-color: {{ pd.project.color }}"></div></div>
+    <div class="flex items-center justify-between mt-2 ml-6">
+        <span class="text-xs text-gray-500">{{ pd.completed_count }}/{{ pd.task_count }} tasks</span>
+        {% if pd.is_overdue %}<span class="text-xs text-red-400 font-medium">Overdue by {{ -pd.days_left }} days</span>
+        {% elif pd.days_left is not none %}<span class="text-xs text-gray-500">{{ pd.days_left }} days left</span>{% endif %}
+    </div>
+</a>
+{% endmacro %}
+
+{% for pd in ungrouped %}{{ project_card(pd) }}{% endfor %}
+
+{% for group_name, pds in groups.items() %}
+<div class="mt-6 mb-3">
+    <h2 class="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-3">{{ group_name }}</h2>
+    {% for pd in pds %}{{ project_card(pd) }}{% endfor %}
+</div>
+{% endfor %}
+
+<script>
+function showNewProjectModal() {
+    const colors = ['#6366f1','#ec4899','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#f97316'];
+    const colorBtns = colors.map(c => `<button type="button" class="color-btn w-8 h-8 rounded-full border-2 border-transparent" style="background:${c}" onclick="selectColor(this,'${c}')"></button>`).join('');
+    openModal(`
+        <h2 class="text-lg font-bold mb-4">New Project</h2>
+        <form onsubmit="createProject(event)">
+            <div class="mb-4"><label class="block text-sm text-gray-400 mb-1">Project Name</label><input type="text" id="proj-name" class="input-field" placeholder="e.g. 100 Days of Code" required autofocus></div>
+            <div class="mb-4"><label class="block text-sm text-gray-400 mb-1">Description</label><textarea id="proj-desc" class="input-field" rows="2" placeholder="What's this project about?"></textarea></div>
+            <div class="mb-4"><label class="block text-sm text-gray-400 mb-1">Group (optional)</label><input type="text" id="proj-group" class="input-field" placeholder="e.g. Learning, Work"></div>
+            <div class="grid grid-cols-2 gap-3 mb-4">
+                <div><label class="block text-sm text-gray-400 mb-1">Start Date</label><input type="date" id="proj-start" class="input-field"></div>
+                <div><label class="block text-sm text-gray-400 mb-1">Due Date</label><input type="date" id="proj-due" class="input-field"></div>
+            </div>
+            <div class="mb-5"><label class="block text-sm text-gray-400 mb-2">Color</label><div class="flex gap-2">${colorBtns}</div><input type="hidden" id="proj-color" value="#6366f1"></div>
+            <button type="submit" class="btn-primary w-full">Create Project</button>
+        </form>
+    `);
+    document.querySelector('.color-btn').classList.add('ring-2','ring-white');
+}
+function selectColor(b,c){document.querySelectorAll('.color-btn').forEach(x=>x.classList.remove('ring-2','ring-white'));b.classList.add('ring-2','ring-white');document.getElementById('proj-color').value=c;}
+async function createProject(e){e.preventDefault();const r=await api('/api/projects','POST',{name:gv('proj-name'),description:gv('proj-desc'),group_name:gv('proj-group'),start_date:gv('proj-start')||null,due_date:gv('proj-due')||null,color:gv('proj-color')});if(r.id)window.location.href=`/project/${r.id}`;}
+</script>
+{% endblock %}
