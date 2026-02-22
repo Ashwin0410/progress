@@ -11,11 +11,18 @@
             <div class="flex items-center justify-between gap-2">
                 <div class="flex items-center gap-2 min-w-0">
                     <span class="task-title text-sm font-medium {{ 'line-through text-gray-600' if task.is_completed else 'text-gray-200' }} cursor-pointer truncate"
-                          onclick="showEditTask({{ task.id }}, '{{ task.title | replace("'", "\\'") }}', `{{ (task.notes or '') | replace('`', '') }}`, '{{ task.due_date or '' }}', {{ task.assigned_to or 'null' }})">
+                          onclick="showEditTask({{ task.id }}, '{{ task.title | replace("'", "\\'") }}', `{{ (task.notes or '') | replace('`', '') }}`, '{{ task.due_date or '' }}', {{ task.assignee_ids | tojson }})">
                         {{ task.title }}
                     </span>
-                    {% if task.assignee_initials %}
-                    <span class="flex-shrink-0 w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold" title="Assigned to {{ task.assignee_name }}">{{ task.assignee_initials }}</span>
+                    {% if task.assignees %}
+                    <div class="flex -space-x-1 flex-shrink-0">
+                        {% for a in task.assignees[:3] %}
+                        <span class="w-5 h-5 rounded-full bg-indigo-600 text-white text-xs flex items-center justify-center font-bold ring-1 ring-gray-950" title="{{ a.name }}">{{ a.initials }}</span>
+                        {% endfor %}
+                        {% if task.assignees|length > 3 %}
+                        <span class="w-5 h-5 rounded-full bg-gray-700 text-gray-300 text-xs flex items-center justify-center font-bold ring-1 ring-gray-950">+{{ task.assignees|length - 3 }}</span>
+                        {% endif %}
+                    </div>
                     {% endif %}
                     {% if task.comment_count > 0 %}
                     <span class="flex-shrink-0 flex items-center gap-0.5 text-xs text-gray-500" title="{{ task.comment_count }} comment{{ 's' if task.comment_count != 1 }}">
