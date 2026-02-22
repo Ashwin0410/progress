@@ -6,12 +6,12 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import or_, func as sqlfunc
 from starlette.middleware.sessions import SessionMiddleware
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from datetime import date, timedelta
 import os
 
 from database import engine, get_db, Base
-from models import User, Project, ProjectMember, Task, ActivityLog, Comment
+from models import User, Project, ProjectMember, Task, TaskAssignee, ActivityLog, Comment
 from auth import create_user, authenticate_user, get_user_by_id
 
 Base.metadata.create_all(bind=engine)
@@ -100,7 +100,7 @@ class TaskCreate(BaseModel):
     notes: str = ""
     parent_task_id: Optional[int] = None
     due_date: Optional[str] = None
-    assigned_to: Optional[int] = None
+    assigned_to: Optional[List[int]] = None
 
 class TaskUpdate(BaseModel):
     title: Optional[str] = None
@@ -108,7 +108,7 @@ class TaskUpdate(BaseModel):
     progress: Optional[float] = None
     is_completed: Optional[bool] = None
     due_date: Optional[str] = None
-    assigned_to: Optional[int] = None
+    assigned_to: Optional[List[int]] = None
 
 class MemberInvite(BaseModel):
     email: str
@@ -145,22 +145,32 @@ def recalc_task_progress(db: Session, task: Task):
 
 def get_task_tree(db: Session, project_id: int, members_map: dict):
     all_tasks = db.query(Task).filter(Task.project_id == project_id).order_by(Task.sort_order, Task.id).all()
+    task_ids = [t.id for t in all_tasks]
+
     # Get comment counts in one query
     comment_counts = dict(db.query(Comment.task_id, sqlfunc.count(Comment.id)).filter(
-        Comment.task_id.in_([t.id for t in all_tasks])
-    ).group_by(Comment.task_id).all()) if all_tasks else {}
+        Comment.task_id.in_(task_ids)
+    ).group_by(Comment.task_id).all()) if task_ids else {}
+
+    # Get all assignees in one query
+    all_assignees = db.query(TaskAssignee).filter(
+        TaskAssignee.task_id.in_(task_ids)
+    ).all() if task_ids else []
+    task_assignees_map = {}
+    for ta in all_assignees:
+        task_assignees_map.setdefault(ta.task_id, []).append(ta.user_id)
 
     task_map = {}
     for t in all_tasks:
-        assignee = members_map.get(t.assigned_to) if t.assigned_to else None
+        assignee_ids = task_assignees_map.get(t.id, [])
+        assignees_info = [members_map[uid] for uid in assignee_ids if uid in members_map]
         task_map[t.id] = {
             "id": t.id, "title": t.title, "notes": t.notes,
             "progress": round(t.progress, 1), "is_completed": t.is_completed,
             "due_date": t.due_date.isoformat() if t.due_date else None,
             "parent_task_id": t.parent_task_id, "children": [],
-            "assigned_to": t.assigned_to,
-            "assignee_name": assignee["name"] if assignee else None,
-            "assignee_initials": assignee["initials"] if assignee else None,
+            "assignee_ids": assignee_ids,
+            "assignees": assignees_info,
             "comment_count": comment_counts.get(t.id, 0),
         }
     roots = []
@@ -304,24 +314,36 @@ async def today_view(request: Request, db: Session = Depends(get_db)):
     today_date = date.today()
     my_project_ids = [p.id for p in user_projects(db, user.id, archived=False)]
 
+    # Task IDs assigned to me
+    my_task_ids = [ta.task_id for ta in db.query(TaskAssignee.task_id).filter(
+        TaskAssignee.user_id == user.id
+    ).all()] if my_project_ids else []
+
     # Tasks assigned to me
     assigned_to_me = db.query(Task).filter(
-        Task.assigned_to == user.id, Task.is_completed == False,
+        Task.id.in_(my_task_ids), Task.is_completed == False,
         Task.project_id.in_(my_project_ids)
-    ).all() if my_project_ids else []
+    ).all() if my_task_ids else []
+
+    # Unassigned task IDs (tasks with no assignees)
+    assigned_task_ids = [ta.task_id for ta in db.query(TaskAssignee.task_id).distinct().filter(
+        TaskAssignee.task_id.in_(
+            db.query(Task.id).filter(Task.project_id.in_(my_project_ids))
+        )
+    ).all()] if my_project_ids else []
 
     # Overdue
     overdue = db.query(Task).filter(
         Task.project_id.in_(my_project_ids),
         Task.due_date < today_date, Task.is_completed == False,
-        or_(Task.assigned_to == user.id, Task.assigned_to.is_(None))
+        or_(Task.id.in_(my_task_ids), ~Task.id.in_(assigned_task_ids)) if assigned_task_ids else True
     ).all() if my_project_ids else []
 
     # Due today
     due_today = db.query(Task).filter(
         Task.project_id.in_(my_project_ids),
         Task.due_date == today_date, Task.is_completed == False,
-        or_(Task.assigned_to == user.id, Task.assigned_to.is_(None))
+        or_(Task.id.in_(my_task_ids), ~Task.id.in_(assigned_task_ids)) if assigned_task_ids else True
     ).all() if my_project_ids else []
 
     # Active projects
@@ -517,8 +539,12 @@ async def remove_member(project_id: int, member_user_id: int, request: Request, 
         raise HTTPException(status_code=404)
 
     # Unassign tasks from removed member
-    db.query(Task).filter(Task.project_id == project_id, Task.assigned_to == member_user_id).update(
-        {Task.assigned_to: None})
+    task_ids_in_project = [t.id for t in db.query(Task.id).filter(Task.project_id == project_id).all()]
+    if task_ids_in_project:
+        db.query(TaskAssignee).filter(
+            TaskAssignee.task_id.in_(task_ids_in_project),
+            TaskAssignee.user_id == member_user_id
+        ).delete(synchronize_session=False)
     db.delete(target_mem)
     db.commit()
     return {"ok": True}
@@ -547,8 +573,16 @@ async def create_task(project_id: int, data: TaskCreate, request: Request, db: S
 
     t = Task(project_id=project_id, parent_task_id=data.parent_task_id,
              title=data.title, notes=data.notes, due_date=parse_date(data.due_date),
-             assigned_to=data.assigned_to, sort_order=max_order + 1)
+             sort_order=max_order + 1)
     db.add(t)
+    db.flush()
+    # Add assignees
+    if data.assigned_to:
+        for uid in data.assigned_to:
+            if uid and db.query(ProjectMember).filter(
+                ProjectMember.project_id == project_id, ProjectMember.user_id == uid
+            ).first():
+                db.add(TaskAssignee(task_id=t.id, user_id=uid))
     db.commit()
     db.refresh(t)
     log_activity(db, user.id, project_id, "task_created", t.title)
@@ -569,15 +603,13 @@ async def update_task(task_id: int, data: TaskUpdate, request: Request, db: Sess
     if data.notes is not None: t.notes = data.notes
     if data.due_date is not None: t.due_date = parse_date(data.due_date)
     if data.assigned_to is not None:
-        # Verify assigned user is a member (0 or null means unassign)
-        if data.assigned_to == 0:
-            t.assigned_to = None
-        else:
-            is_member = db.query(ProjectMember).filter(
-                ProjectMember.project_id == t.project_id, ProjectMember.user_id == data.assigned_to
-            ).first()
-            if is_member:
-                t.assigned_to = data.assigned_to
+        # Clear existing assignees and set new ones
+        db.query(TaskAssignee).filter(TaskAssignee.task_id == t.id).delete(synchronize_session=False)
+        for uid in data.assigned_to:
+            if uid and db.query(ProjectMember).filter(
+                ProjectMember.project_id == t.project_id, ProjectMember.user_id == uid
+            ).first():
+                db.add(TaskAssignee(task_id=t.id, user_id=uid))
 
     if data.is_completed is not None:
         t.is_completed = data.is_completed
