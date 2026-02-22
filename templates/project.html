@@ -164,28 +164,26 @@ async function deleteProject(){if(!confirm('Delete this project and all data? Ca
 
 function showAddTaskModal(parentId) {
     const label = parentId ? 'Add Subtask' : 'Add Task';
-    const assignOpts = MEMBERS.map(m => `<option value="${m.id}">${m.name}</option>`).join('');
+    const assignChecks = MEMBERS.map(m => `<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" class="new-assign-cb" value="${m.id}"><span class="text-sm text-gray-300">${m.name}</span></label>`).join('');
     openModal(`
         <h2 class="text-lg font-bold mb-4">${label}</h2>
         <form onsubmit="createTask(event, ${parentId})">
             <div class="mb-3"><label class="block text-sm text-gray-400 mb-1">Title</label><input type="text" id="new-task-title" class="input-field" placeholder="What needs to be done?" required autofocus></div>
             <div class="mb-3"><label class="block text-sm text-gray-400 mb-1">Notes</label><textarea id="new-task-notes" class="input-field" rows="2" placeholder="Optional notes..."></textarea></div>
-            <div class="grid grid-cols-2 gap-3 mb-3">
-                <div><label class="block text-sm text-gray-400 mb-1">Due Date</label><input type="date" id="new-task-due" class="input-field"></div>
-                <div><label class="block text-sm text-gray-400 mb-1">Assign to</label>
-                    <select id="new-task-assign" class="input-field"><option value="">Unassigned</option>${assignOpts}</select></div>
-            </div>
+            <div class="mb-3"><label class="block text-sm text-gray-400 mb-1">Due Date</label><input type="date" id="new-task-due" class="input-field"></div>
+            <div class="mb-3"><label class="block text-sm text-gray-400 mb-1">Assign to</label>
+                <div class="bg-gray-800 rounded-lg p-2 max-h-32 overflow-y-auto">${assignChecks || '<span class="text-xs text-gray-500">No members</span>'}</div></div>
             <button type="submit" class="btn-primary w-full">${label}</button>
         </form>
     `);
 }
 async function createTask(e, parentId) {
     e.preventDefault();
-    const assignVal = gv('new-task-assign');
+    const assignIds = [...document.querySelectorAll('.new-assign-cb:checked')].map(cb => parseInt(cb.value));
     await api(`/api/projects/${PROJECT_ID}/tasks`, 'POST', {
         title:gv('new-task-title'), notes:gv('new-task-notes'),
         due_date:gv('new-task-due')||null, parent_task_id:parentId,
-        assigned_to: assignVal ? parseInt(assignVal) : null
+        assigned_to: assignIds.length ? assignIds : null
     });
     location.reload();
 }
@@ -203,16 +201,15 @@ async function updateProgress(taskId, value) {
 function updateProjectProgress(v){document.getElementById('proj-prog-text').textContent=v+'%';document.getElementById('proj-prog-bar').style.width=v+'%';}
 
 function showEditTask(taskId, title, notes, dueDate, assignedTo) {
-    const assignOpts = MEMBERS.map(m => `<option value="${m.id}" ${m.id==assignedTo?'selected':''}>${m.name}</option>`).join('');
+    const assignedIds = assignedTo || [];
+    const assignChecks = MEMBERS.map(m => `<label class="flex items-center gap-2 py-1 cursor-pointer"><input type="checkbox" class="edit-assign-cb" value="${m.id}" ${assignedIds.includes(m.id)?'checked':''}><span class="text-sm text-gray-300">${m.name}</span></label>`).join('');
     openModal(`
         ${CAN_EDIT ? `<form onsubmit="editTask(event, ${taskId})">
             <div class="mb-3"><label class="block text-sm text-gray-400 mb-1">Title</label><input type="text" id="edit-task-title" class="input-field" value="${escapeHtml(title)}" required></div>
             <div class="mb-3"><label class="block text-sm text-gray-400 mb-1">Notes</label><textarea id="edit-task-notes" class="input-field" rows="2">${escapeHtml(notes||'')}</textarea></div>
-            <div class="grid grid-cols-2 gap-3 mb-3">
-                <div><label class="block text-sm text-gray-400 mb-1">Due Date</label><input type="date" id="edit-task-due" class="input-field" value="${dueDate||''}"></div>
-                <div><label class="block text-sm text-gray-400 mb-1">Assign to</label>
-                    <select id="edit-task-assign" class="input-field"><option value="0">Unassigned</option>${assignOpts}</select></div>
-            </div>
+            <div class="mb-3"><label class="block text-sm text-gray-400 mb-1">Due Date</label><input type="date" id="edit-task-due" class="input-field" value="${dueDate||''}"></div>
+            <div class="mb-3"><label class="block text-sm text-gray-400 mb-1">Assign to</label>
+                <div class="bg-gray-800 rounded-lg p-2 max-h-32 overflow-y-auto">${assignChecks || '<span class="text-xs text-gray-500">No members</span>'}</div></div>
             <button type="submit" class="btn-primary w-full mb-2">Save</button>
         </form>
         <button onclick="deleteTask(${taskId})" class="btn-danger w-full text-sm mb-4">Delete Task</button>` :
@@ -299,11 +296,11 @@ async function deleteComment(commentId, taskId) {
 }
 async function editTask(e, taskId) {
     e.preventDefault();
-    const assignVal = gv('edit-task-assign');
+    const assignIds = [...document.querySelectorAll('.edit-assign-cb:checked')].map(cb => parseInt(cb.value));
     await api(`/api/tasks/${taskId}`, 'PUT', {
         title:gv('edit-task-title'), notes:gv('edit-task-notes'),
         due_date:gv('edit-task-due')||null,
-        assigned_to: parseInt(assignVal) || 0
+        assigned_to: assignIds
     });
     location.reload();
 }
