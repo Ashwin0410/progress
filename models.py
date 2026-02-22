@@ -14,7 +14,7 @@ class User(Base):
 
     memberships = relationship("ProjectMember", back_populates="user", cascade="all, delete-orphan")
     activities = relationship("ActivityLog", back_populates="user", cascade="all, delete-orphan")
-    assigned_tasks = relationship("Task", back_populates="assignee", foreign_keys="Task.assigned_to")
+    task_assignments = relationship("TaskAssignee", back_populates="user", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="user", cascade="all, delete-orphan")
 
     @property
@@ -68,7 +68,6 @@ class Task(Base):
     id = Column(Integer, primary_key=True, index=True)
     project_id = Column(Integer, ForeignKey("prog_projects.id", ondelete="CASCADE"), nullable=False)
     parent_task_id = Column(Integer, ForeignKey("prog_tasks.id", ondelete="CASCADE"), nullable=True)
-    assigned_to = Column(Integer, ForeignKey("prog_users.id", ondelete="SET NULL"), nullable=True)
     title = Column(String(500), nullable=False)
     notes = Column(Text, default="")
     progress = Column(Float, default=0.0)
@@ -80,9 +79,21 @@ class Task(Base):
 
     project = relationship("Project", back_populates="tasks", foreign_keys=[project_id])
     parent = relationship("Task", remote_side=[id], backref="subtasks")
-    assignee = relationship("User", back_populates="assigned_tasks", foreign_keys=[assigned_to])
+    assignees = relationship("TaskAssignee", back_populates="task", cascade="all, delete-orphan")
     comments = relationship("Comment", back_populates="task", cascade="all, delete-orphan",
                             order_by="Comment.created_at")
+
+
+class TaskAssignee(Base):
+    __tablename__ = "prog_task_assignees"
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("prog_tasks.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("prog_users.id", ondelete="CASCADE"), nullable=False)
+
+    task = relationship("Task", back_populates="assignees")
+    user = relationship("User", back_populates="task_assignments")
+
+    __table_args__ = (UniqueConstraint("task_id", "user_id", name="uq_prog_task_assignee"),)
 
 
 class Comment(Base):
