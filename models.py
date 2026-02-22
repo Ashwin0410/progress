@@ -5,7 +5,7 @@ from database import Base
 
 
 class User(Base):
-    __tablename__ = "users"
+    __tablename__ = "prog_users"
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String(255), unique=True, nullable=False, index=True)
     password_hash = Column(String(255), nullable=False)
@@ -30,23 +30,23 @@ class User(Base):
 
 
 class ProjectMember(Base):
-    __tablename__ = "project_members"
+    __tablename__ = "prog_project_members"
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    role = Column(String(20), default="editor")  # owner, editor, viewer
+    project_id = Column(Integer, ForeignKey("prog_projects.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("prog_users.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String(20), default="editor")
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
 
     project = relationship("Project", back_populates="members")
     user = relationship("User", back_populates="memberships")
 
-    __table_args__ = (UniqueConstraint("project_id", "user_id", name="uq_project_user"),)
+    __table_args__ = (UniqueConstraint("project_id", "user_id", name="uq_prog_project_user"),)
 
 
 class Project(Base):
-    __tablename__ = "projects"
+    __tablename__ = "prog_projects"
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    owner_id = Column(Integer, ForeignKey("prog_users.id", ondelete="CASCADE"), nullable=False)
     name = Column(String(255), nullable=False)
     description = Column(Text, default="")
     color = Column(String(7), default="#6366f1")
@@ -64,11 +64,11 @@ class Project(Base):
 
 
 class Task(Base):
-    __tablename__ = "tasks"
+    __tablename__ = "prog_tasks"
     id = Column(Integer, primary_key=True, index=True)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    parent_task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=True)
-    assigned_to = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    project_id = Column(Integer, ForeignKey("prog_projects.id", ondelete="CASCADE"), nullable=False)
+    parent_task_id = Column(Integer, ForeignKey("prog_tasks.id", ondelete="CASCADE"), nullable=True)
+    assigned_to = Column(Integer, ForeignKey("prog_users.id", ondelete="SET NULL"), nullable=True)
     title = Column(String(500), nullable=False)
     notes = Column(Text, default="")
     progress = Column(Float, default=0.0)
@@ -86,10 +86,10 @@ class Task(Base):
 
 
 class Comment(Base):
-    __tablename__ = "comments"
+    __tablename__ = "prog_comments"
     id = Column(Integer, primary_key=True, index=True)
-    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    task_id = Column(Integer, ForeignKey("prog_tasks.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(Integer, ForeignKey("prog_users.id", ondelete="CASCADE"), nullable=False)
     text = Column(Text, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -98,10 +98,10 @@ class Comment(Base):
 
 
 class ActivityLog(Base):
-    __tablename__ = "activity_log"
+    __tablename__ = "prog_activity_log"
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(Integer, ForeignKey("prog_users.id", ondelete="CASCADE"), nullable=False)
+    project_id = Column(Integer, ForeignKey("prog_projects.id", ondelete="SET NULL"), nullable=True)
     action = Column(String(50), nullable=False)
     detail = Column(String(500), default="")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
